@@ -1,24 +1,257 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="en">
   <head>
-    <title>BLABLA</title>
+    <title>TRONG</title>
     <meta charset="utf-8" />
     <meta name="author" content="Leandro Frederico" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <link type="text/css" rel="stylesheet" href="main.css" />
     <meta name="description" content="USCS - Three.js - Computação Gráfica" />
-    <meta name="keywords" content="THREE.js" />
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-      }
-      html,
-      body {
-        overflow: hidden;
-      }
-    </style>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r127/three.js"></script> -->
+    <!-- <script src="./lib/three.module.js" type="module"></script>
+    <script src="./lib/stats.module.js" type="module"></script>
+    <script src="./lib/dat.gui.module.js" type="module"></script>
+    <script src="./lib/OrbitControls.js" type="module"></script> -->
   </head>
   <body>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r127/three.js"></script>
-    <script src="./lib/main.js"></script>
+    <script type="module">
+      import * as THREE from "./lib/threejs/three.module.js";
+      import Stats from "./lib/threejs/stats.module.js";
+      import { GUI } from "./lib/threejs/dat.gui.module.js";
+      import { OrbitControls } from "./lib/threejs/OrbitControls.js";
+
+      let container,
+        stats,
+        camera,
+        scene,
+        renderer,
+        mainLight,
+        ball,
+        paddle1,
+        paddle2,
+        field,
+        running,
+        score = {
+          player1: 0,
+          player2: 0,
+        };
+      const WIDTH = window.innerWidth,
+        HEIGHT = window.innerHeight,
+        VIEW_ANGLE = 45,
+        ASPECT = WIDTH / HEIGHT,
+        NEAR = 0.1,
+        FAR = 10000,
+        FIELD_WIDTH = 800,
+        FIELD_LENGTH = 600,
+        BALL_RADIUS = 20,
+        PADDLE_WIDTH = 200,
+        PADDLE_HEIGHT = 30,
+        FIELD_BORDER_SIZE = 10;
+
+      init();
+      animate(0);
+
+      function init() {
+        container = document.createElement("div");
+        document.body.appendChild(container);
+
+        // SCENE
+        scene = new THREE.Scene();
+        // scene.fog = new THREE.Fog( 0xcce0ff, 500, 10000 );
+
+        // CAMERA
+        camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+
+        // LIGHTS
+        // const color = 0xffffff;
+        // const intensity = 1;
+        // const light = new THREE.DirectionalLight(color, intensity);
+        // const light2 = new THREE.DirectionalLight(color, intensity);
+        // const light3 = new THREE.DirectionalLight(color, intensity);
+        // const light4 = new THREE.DirectionalLight(color, intensity);
+        // light.position.set(FIELD_WIDTH / 2, 100, FIELD_LENGTH / 2);
+        // scene.add(light);
+        // light2.position.set(FIELD_WIDTH / -2, 100, FIELD_LENGTH / -2);
+        // scene.add(light2);
+        // light3.position.set(FIELD_WIDTH / 2, 100, FIELD_LENGTH / -2);
+        // scene.add(light3);
+        // light4.position.set(FIELD_WIDTH / -2, 100, FIELD_LENGTH / 2);
+        // scene.add(light4);
+        const lights = {
+          0: {
+            color: 0xffffff,
+            intensity: 1,
+            position: [FIELD_WIDTH / 2, 100, FIELD_LENGTH / 2]
+          },
+          1: {
+            color: 0xffffff,
+            intensity: 1,
+            position: [FIELD_WIDTH / -2, 100, FIELD_LENGTH / -2]
+          },
+          2: {
+            color: 0xffffff,
+            intensity: 1,
+            position: [FIELD_WIDTH / 2, 100, FIELD_LENGTH / -2]
+          },
+          3: {
+            color: 0xffffff,
+            intensity: 1,
+            position: [FIELD_WIDTH / -2, 100, FIELD_LENGTH / 2]
+          },
+        };
+
+        for (const key in lights) {
+          if (Object.hasOwnProperty.call(lights, key)) {
+            lights[key].instance = new THREE.DirectionalLight(lights[key].color, lights[key].intensity)
+            lights[key].instance.position.set(...lights[key].position)
+            scene.add(lights[key].instance);
+          }
+        }
+        
+
+        // RENDERER
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(WIDTH, HEIGHT);
+        // renderer.setClearColor(0x000, 1);
+        container.appendChild(renderer.domElement);
+
+        // CONTROLS
+        const controls = new OrbitControls(camera, renderer.domElement);
+        // controls.maxPolarAngle = Math.PI * 0.5;
+        // controls.minDistance = 1000;
+        // controls.maxDistance = 5000;
+
+        // PERFORMANCE MONITOR
+        stats = new Stats();
+        container.appendChild(stats.dom);
+
+        // RESIZE HANDLER
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // OBJECTS
+        // FIELD
+        const fieldGeometry = new THREE.BoxGeometry(
+          FIELD_WIDTH,
+          1,
+          FIELD_LENGTH
+        );
+        const fieldMaterial = new THREE.MeshPhongMaterial({
+          color: 0xc9c9c9,
+          opacity: 0.8,
+          transparent: true,
+          side: THREE.DoubleSide,
+        });
+        const fieldMesh = new THREE.Mesh(fieldGeometry, fieldMaterial);
+
+        const borderWidthGeometry = new THREE.BoxGeometry(
+          FIELD_WIDTH + FIELD_BORDER_SIZE,
+          20,
+          FIELD_BORDER_SIZE
+        );
+        const borderHeightGeometry = new THREE.BoxGeometry(
+          FIELD_BORDER_SIZE,
+          20,
+          FIELD_LENGTH + FIELD_BORDER_SIZE
+        );
+        const borderMaterial = new THREE.MeshPhongMaterial({
+          color: 0xffffff,
+          side: THREE.DoubleSide,
+        });
+        const borderWidthMesh = new THREE.Mesh(
+          borderWidthGeometry,
+          borderMaterial
+        );
+        const borderHeightMesh = new THREE.Mesh(
+          borderHeightGeometry,
+          borderMaterial
+        );
+        const borderMeshTop = borderWidthMesh.clone();
+        const borderMeshBottom = borderWidthMesh.clone();
+        const borderMeshRight = borderHeightMesh.clone();
+        const borderMeshLeft = borderHeightMesh.clone();
+        borderMeshTop.position.z = FIELD_LENGTH / -2;
+        borderMeshBottom.position.z = FIELD_LENGTH / 2;
+        borderMeshRight.position.x = FIELD_WIDTH / -2;
+        borderMeshLeft.position.x = FIELD_WIDTH / 2;
+        const fieldGroup = new THREE.Object3D();
+        fieldGroup.add(fieldMesh);
+        fieldGroup.add(borderMeshTop);
+        fieldGroup.add(borderMeshBottom);
+        fieldGroup.add(borderMeshRight);
+        fieldGroup.add(borderMeshLeft);
+        scene.add(fieldGroup);
+
+        camera.position.z = 700;
+        camera.position.y = 500;
+        camera.lookAt(fieldMesh.position);
+
+        // DEBUG
+        const gui = new GUI();
+        // gui.add(camera.position, 'x').onChange(()=>{
+        //   camera.lookAt(fieldMesh.position)
+        // })
+        // gui.add(camera.position, 'y').onChange(()=>{
+        //   camera.lookAt(fieldMesh.position)
+        // })
+        // gui.add(camera.position, 'z').onChange(()=>{
+        //   camera.lookAt(fieldMesh.position)
+        // })
+        // gui.add(fieldGroup.children[1].position, 'x')
+        // gui.add(fieldGroup.children[1].position, 'y')
+        // gui.add(fieldGroup.children[1].position, 'z')
+        // const light1Color = {
+        //   color: 0xFFFFFF
+        // }
+        // const lightFolder = gui.addFolder('light 1')
+        // .add(light.position, 'x')
+        // .add(light.position, 'y')
+        // lightFolder1.add(light.position, 'z')
+        // lightFolder1.add(light, 'intensity').min(0).max(10).step(0.1)
+        // lightFolder1.addColor(light1Color, 'color').onChange(()=>{
+        //   light.color.set(light1Color.color)
+        // })
+
+        // const lightHelper = new THREE.PointLightHelper(light, 2)
+        // const lightHelper2 = new THREE.PointLightHelper(light2, 2)
+        // const lightHelper3 = new THREE.PointLightHelper(light3, 2)
+        // const lightHelper4 = new THREE.PointLightHelper(light4, 2)
+        // scene.add(lightHelper);
+        // scene.add(lightHelper2);
+        // scene.add(lightHelper3);
+        // scene.add(lightHelper4);
+        
+        for (const key in lights) {
+          if (Object.hasOwnProperty.call(lights, key)) {
+            let folder = 'lights' + key
+            gui.addFolder(folder)
+            gui.__folders[folder].add(lights[key].instance.position, 'x')
+            gui.__folders[folder].add(lights[key].instance.position, 'y')
+            gui.__folders[folder].add(lights[key].instance.position, 'z')
+            gui.__folders[folder].addColor(lights[key], 'color').onChange(()=>{
+              lights[key].instance.color.set(lights[key].color)
+            })
+            const lightHelper = new THREE.PointLightHelper(lights[key].instance, 2)
+            scene.add(lightHelper)
+          }
+        }
+      }
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+        render();
+        stats.update();
+      }
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+    </script>
   </body>
 </html>
